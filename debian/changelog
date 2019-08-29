@@ -1,9 +1,15 @@
-cinnamon-screensaver (4.0.3-1~1) UNRELEASED; urgency=medium
+cinnamon-screensaver (4.0.3-1) unstable; urgency=medium
 
+  [ Norbert Preining ]
   * New upstream release (4.0.{2,3})
     - drop dependencies on xscreensaver packages (Closes: #819763)
 
- -- Norbert Preining <norbert@preining.info>  Sun, 17 Feb 2019 19:25:56 +0900
+  [ Maximiliano Curia ]
+  * Add a basic gbp.conf
+  * Add a debian/salsa-ci.yml file
+  * Release to unstable
+
+ -- Maximiliano Curia <maxy@debian.org>  Thu, 29 Aug 2019 12:04:50 -0300
 
 cinnamon-screensaver (3.8.2-1) unstable; urgency=medium
 
