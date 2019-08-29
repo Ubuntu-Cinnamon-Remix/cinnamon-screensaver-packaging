@@ -15,9 +15,9 @@ from clock import ClockWidget
 from albumArt import AlbumArt
 from audioPanel import AudioPanel
 from infoPanel import InfoPanel
+from osk import OnScreenKeyboard
 from floating import ALIGNMENTS
 from util import utils, trackers, settings
-from util.fader import Fader
 from util.eventHandler import EventHandler
 
 class Stage(Gtk.Window):
@@ -91,10 +91,8 @@ class Stage(Gtk.Window):
         self.override_background_color (Gtk.StateFlags.NORMAL, c);
 
         self.update_geometry()
-        self.move_offscreen()
 
         self.overlay = Gtk.Overlay()
-        self.fader = Fader(self)
 
         trackers.con_tracker_get().connect(self.overlay,
                                            "realize",
@@ -127,6 +125,10 @@ class Stage(Gtk.Window):
         trackers.con_tracker_get().connect(status.screen,
                                            "monitors-changed",
                                            self.on_monitors_changed)
+
+        trackers.con_tracker_get().connect(status.screen,
+                                           "composited-changed",
+                                           self.on_composited_changed)
 
         trackers.con_tracker_get().connect(self,
                                            "grab-broken-event",
@@ -176,6 +178,21 @@ class Stage(Gtk.Window):
 
         self.queue_refresh_stage()
 
+    def on_composited_changed(self, screen, data=None):
+        if self.get_realized():
+
+            user_time = self.get_display().get_user_time()
+
+            self.hide()
+            self.unrealize()
+
+            self.realize()
+
+            self.get_window().set_user_time(user_time)
+            self.show()
+
+            GObject.idle_add(self.manager.grab_stage)
+
     def on_grab_broken_event(self, widget, event, data=None):
         GObject.idle_add(self.manager.grab_stage)
 
@@ -209,44 +226,23 @@ class Stage(Gtk.Window):
         self.update_monitors()
         self.overlay.queue_resize()
 
-    def transition_in(self, effect_time, callback):
+    def activate(self, callback):
         """
         This is the primary way of making the Stage visible.
         """
 
-        # Cancel any existing transition
-        self.fader.cancel()
+        self.set_opacity(1.0)
+        self.move_onscreen()
+        self.show()
 
-        if effect_time == 0:
-            self.set_opacity(1.0)
-            self.move_onscreen()
-            self.show()
+        callback()
 
-            callback()
-        else:
-            self.set_opacity(0.0)
-            self.show()
-
-            self.fader.fade_in(effect_time, self.move_onscreen, callback)
-
-    def transition_out(self, effect_time, callback):
+    def deactivate(self, callback):
         """
-        This is the primary way of destroying the stage.  This can
-        end up being called multiple times, so we keep track of if we've
-        already started a transition, and ignore further calls.
+        This is the primary way of destroying the stage.
         """
-        if self.destroying:
-            return
-
-        self.destroying = True
-
-        self.fader.cancel()
-
-        if utils.have_gtk_version("3.18.0"):
-            self.fader.fade_out(effect_time, callback)
-        else:
-            self.hide()
-            callback()
+        self.hide()
+        callback()
 
     def on_realized(self, widget):
         """
@@ -263,6 +259,10 @@ class Stage(Gtk.Window):
 
         self.gdk_filter.start(self)
 
+        trackers.con_tracker_get().disconnect(self.overlay,
+                                              "realize",
+                                              self.on_realized)
+
     def move_onscreen(self):
         w = self.get_window()
 
@@ -273,10 +273,6 @@ class Stage(Gtk.Window):
                           self.rect.height)
 
         self.move(self.rect.x, self.rect.y)
-        self.resize(self.rect.width, self.rect.height)
-
-    def move_offscreen(self):
-        self.move(-self.rect.width, -self.rect.height)
         self.resize(self.rect.width, self.rect.height)
 
     def deactivate_after_timeout(self):
@@ -324,6 +320,12 @@ class Stage(Gtk.Window):
                 self.audio_panel = None
                 self.info_panel = None
 
+            try:
+                self.setup_osk()
+            except Exception as e:
+                print("Problem setting up on-screen keyboard: %s" % str(e))
+                self.osk = None
+
         if total_failure:
             print("Total failure somewhere, deactivating screensaver.")
             GObject.idle_add(self.deactivate_after_timeout)
@@ -366,11 +368,18 @@ class Stage(Gtk.Window):
         except Exception as e:
             print(e)
 
+        try:
+            if self.osk != None:
+                self.osk.destroy()
+        except Exception as e:
+            print(e)
+
         self.unlock_dialog = None
         self.clock_widget = None
         self.albumart_widget = None
         self.info_panel = None
         self.audio_panel = None
+        self.osk = None
         self.away_message = None
 
         self.monitors = []
@@ -396,8 +405,6 @@ class Stage(Gtk.Window):
         self.set_timeout_active(None, False)
 
         self.destroy_children()
-
-        self.fader = None
 
         self.gdk_filter.stop()
         self.gdk_filter = None
@@ -442,7 +449,7 @@ class Stage(Gtk.Window):
                                                              monitor.rect.width,
                                                              monitor.rect.height)
 
-            monitor.set_initial_wallpaper_image(image)
+            monitor.set_next_wallpaper_image(image)
 
             self.monitors.append(monitor)
 
@@ -507,6 +514,11 @@ class Stage(Gtk.Window):
 
         if settings.get_show_albumart():
             self.albumart_widget.start_positioning()
+
+    def setup_osk(self):
+        self.osk = OnScreenKeyboard()
+
+        self.add_child_widget(self.osk)
 
     def setup_unlock(self):
         """
@@ -659,6 +671,8 @@ class Stage(Gtk.Window):
             self.audio_panel.show_panel()
         if self.info_panel != None:
             self.info_panel.update_visibility()
+        if self.osk != None:
+            self.osk.show()
 
     def cancel_unlocking(self):
         if self.unlock_dialog:
@@ -684,6 +698,8 @@ class Stage(Gtk.Window):
             self.audio_panel.hide()
         if self.info_panel != None:
             self.info_panel.hide()
+        if self.osk != None:
+            self.osk.hide()
 
         self.unlock_dialog.cancel()
         status.Awake = False
@@ -981,5 +997,22 @@ class Stage(Gtk.Window):
 
             return True
 
+        if isinstance(child, OnScreenKeyboard):
+            """
+            The InfoPanel can be shown while not Awake, but will only appear if a) We have received
+            notifications while the screensaver is running, or b) we're either on battery
+            or plugged in but with a non-full battery.  It attaches itself to the upper-right
+            corner of the monitor.
+            """
+            min_rect, nat_rect = child.get_preferred_size()
+
+            current_monitor = status.screen.get_mouse_monitor()
+            monitor_rect = status.screen.get_monitor_geometry(current_monitor)
+            allocation.x = monitor_rect.x
+            allocation.y = monitor_rect.y + monitor_rect.height - (monitor_rect.height / 3)
+            allocation.width = monitor_rect.width
+            allocation.height = monitor_rect.height / 3
+
+            return True
 
         return False
