@@ -28,6 +28,7 @@
 enum {
         SCREEN_MONITORS_CHANGED,
         SCREEN_SIZE_CHANGED,
+        COMPOSITED_CHANGED,
         LAST_SIGNAL
 };
 
@@ -175,7 +176,8 @@ apply_scale_factor (CsMonitorInfo *infos,
 #define MONITOR_HEIGHT_THRESHOLD 1000
 
 static gboolean
-get_low_res_mode (CsMonitorInfo *infos,
+get_low_res_mode (CsScreen      *screen,
+                  CsMonitorInfo *infos,
                   gint           n_infos)
 {
     gint i;
@@ -188,6 +190,9 @@ get_low_res_mode (CsMonitorInfo *infos,
         smallest_width = MIN (infos[i].rect.width, smallest_width);
         smallest_height = MIN (infos[i].rect.height, smallest_height);
     }
+
+    screen->smallest_width = smallest_width;
+    screen->smallest_height = smallest_height;
 
     if (smallest_width < MONITOR_WIDTH_THRESHOLD || smallest_height < MONITOR_HEIGHT_THRESHOLD)
     {
@@ -390,7 +395,8 @@ reload_monitor_infos (CsScreen *screen)
                         screen->n_monitor_infos,
                         gdk_screen_get_monitor_scale_factor (screen->gdk_screen, PRIMARY_MONITOR));
 
-    screen->low_res = get_low_res_mode (screen->monitor_infos,
+    screen->low_res = get_low_res_mode (screen,
+                                        screen->monitor_infos,
                                         screen->n_monitor_infos);
 
     g_assert (screen->n_monitor_infos > 0);
@@ -442,12 +448,34 @@ on_screen_changed (GdkScreen *gdk_screen, gpointer user_data)
 }
 
 static void
+on_composited_changed (GdkScreen *gdk_screen, gpointer user_data)
+{
+    CsScreen *screen;
+
+    screen = CS_SCREEN (user_data);
+
+    DEBUG ("CsScreen received 'composited-changed' signal from GdkScreen\n");
+
+    g_signal_emit (screen, signals[COMPOSITED_CHANGED], 0);
+}
+
+static void
 cs_screen_init (CsScreen *screen)
 {
     screen->gdk_screen = gdk_screen_get_default ();
 
-    screen->monitors_changed_id = g_signal_connect (screen->gdk_screen, "monitors-changed", G_CALLBACK (on_monitors_changed), screen);
-    screen->screen_size_changed_id = g_signal_connect (screen->gdk_screen, "size-changed", G_CALLBACK (on_screen_changed), screen);
+    screen->monitors_changed_id = g_signal_connect (screen->gdk_screen,
+                                                    "monitors-changed",
+                                                    G_CALLBACK (on_monitors_changed),
+                                                    screen);
+    screen->screen_size_changed_id = g_signal_connect (screen->gdk_screen,
+                                                       "size-changed",
+                                                       G_CALLBACK (on_screen_changed),
+                                                       screen);
+    screen->composited_changed_id = g_signal_connect (screen->gdk_screen,
+                                                      "composited-changed",
+                                                      G_CALLBACK (on_composited_changed),
+                                                      screen);
 
     reload_screen_info (screen);
     reload_monitor_infos (screen);
@@ -495,6 +523,12 @@ cs_screen_dispose (GObject *object)
         screen->screen_size_changed_id = 0;
     }
 
+    if (screen->composited_changed_id > 0)
+    {
+        g_signal_handler_disconnect (screen->gdk_screen, screen->composited_changed_id);
+        screen->composited_changed_id = 0;
+    }
+
     DEBUG ("CsScreen dispose\n");
 
     G_OBJECT_CLASS (cs_screen_parent_class)->dispose (object);
@@ -516,6 +550,13 @@ cs_screen_class_init (CsScreenClass *klass)
                                               G_TYPE_NONE, 0);
 
     signals[SCREEN_SIZE_CHANGED] = g_signal_new ("size-changed",
+                                            G_TYPE_FROM_CLASS (object_class),
+                                            G_SIGNAL_RUN_LAST,
+                                            0,
+                                            NULL, NULL, NULL,
+                                            G_TYPE_NONE, 0);
+
+    signals[COMPOSITED_CHANGED] = g_signal_new ("composited-changed",
                                             G_TYPE_FROM_CLASS (object_class),
                                             G_SIGNAL_RUN_LAST,
                                             0,
@@ -684,6 +725,35 @@ cs_screen_get_low_res_mode (CsScreen *screen)
     g_return_val_if_fail (CS_IS_SCREEN (screen), FALSE);
 
     return screen->low_res;
+}
+
+/**
+ * cs_screen_get_smallest_monitor_sizes:
+ * @screen: a #CsScreen
+ * @width: (out): width of the smallest monitor
+ * @height: (out): height of the smallest monitor
+ *
+ * Gets whether or not one of our monitors falls below the low res threshold (1200 wide).
+ * This lets us display certain things at smaller sizes to prevent truncating of images, etc.
+ *
+ * Returns: Whether or not to use low res mode.
+ */
+void
+cs_screen_get_smallest_monitor_sizes (CsScreen *screen,
+                                      gint     *width,
+                                      gint     *height)
+{
+    g_return_if_fail (CS_IS_SCREEN (screen));
+
+    if (width != NULL)
+    {
+        *width = screen->smallest_width;
+    }
+
+    if (height != NULL)
+    {
+        *height = screen->smallest_height;
+    }
 }
 
 /**
