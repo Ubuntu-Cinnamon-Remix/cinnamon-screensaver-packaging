@@ -31,9 +31,9 @@ Package: cinnamon-screensaver
 Architecture: any
 Pre-Depends: ${misc:Pre-Depends}
 Depends:
- cinnamon-desktop-data (>= 4.0),
+ cinnamon-desktop-data (>= 4.2),
  gir1.2-accountsservice-1.0,
- gir1.2-cinnamondesktop-3.0 (>= 4.0),
+ gir1.2-cinnamondesktop-3.0 (>= 4.2),
  gir1.2-gkbd-3.0,
  gir1.2-glib-2.0,
  gir1.2-gtk-3.0,
@@ -50,8 +50,8 @@ Depends:
  ${shlibs:Depends},
 Recommends: libpam-gnome-keyring
 Breaks:
- cinnamon (<< 4.0),
- cinnamon-core (<< 4.0~),
+ cinnamon (<< 4.2),
+ cinnamon-core (<< 4.2~),
  cinnamon-screensaver-pam-helper (<< 3.8),
  cinnamon-screensaver-webkit-plugin (<< 3.9),
  cinnamon-screensaver-x-plugin (<< 3.9)
