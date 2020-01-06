@@ -8,12 +8,12 @@ This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 
 --- cinnamon-screensaver.git.orig/src/passwordEntry.py
 +++ cinnamon-screensaver.git/src/passwordEntry.py
-@@ -71,7 +71,7 @@ class PasswordEntry(Gtk.Entry):
-             name = self.keyboard_controller.get_current_icon_name()
+@@ -73,7 +73,7 @@ class PasswordEntry(Gtk.Entry):
+             ui_scale = self.get_scale_factor()
  
              if name:
 -                filename = "/usr/share/iso-flag-png/%s.png" % name
 +                filename = "/usr/share/iso-flags-png-320x240/%s.png" % name
  
                  try:
-                     pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(filename, -1, height)
+                     pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(filename, -1, height * ui_scale)
