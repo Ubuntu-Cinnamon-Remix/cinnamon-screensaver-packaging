@@ -1,9 +1,9 @@
-cinnamon-screensaver (4.4.1-1~1) UNRELEASED; urgency=medium
+cinnamon-screensaver (4.4.1-1) experimental; urgency=medium
 
   * New upstream version 4.4.1
   * update patch
 
- -- Norbert Preining <norbert@preining.info>  Mon, 06 Jan 2020 12:00:53 +0900
+ -- Norbert Preining <norbert@preining.info>  Sun, 19 Jan 2020 09:48:13 +0900
 
 cinnamon-screensaver (4.2.0-2) unstable; urgency=medium
 
