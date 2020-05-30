@@ -10,7 +10,7 @@ Uploaders:
 Build-Depends:
  autoconf-archive,
  automake,
- debhelper (>= 11.1~),
+ debhelper-compat (= 13),
  dh-python,
  gnome-pkg-tools (>= 0.10),
  gobject-introspection,
@@ -22,6 +22,7 @@ Build-Depends:
  libpam0g-dev,
  librsvg2-bin,
  libxext-dev,
+ meson,
  python3,
 Standards-Version: 4.1.4
 Homepage: http://cinnamon.linuxmint.com/
