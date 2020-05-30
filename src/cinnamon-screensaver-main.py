@@ -14,7 +14,7 @@ import setproctitle
 
 import config
 import status
-from util import utils
+from util import utils, settings
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 gettext.install("cinnamon-screensaver", "/usr/share/locale")
@@ -39,6 +39,10 @@ class Main:
         parser.add_argument('--no-daemon', dest='no_daemon', action='store_true',
                             help="Deprecated: left for compatibility only - we never become a daemon")
         args = parser.parse_args()
+
+        if settings.get_custom_screensaver() != '':
+            print("custom screensaver selected, exiting cinnamon-screensaver.")
+            quit()
 
         if args.version:
             print("cinnamon-screensaver %s" % (config.VERSION))
@@ -86,12 +90,7 @@ class Main:
         if ".csstage" not in css:
             print("Cinnamon Screensaver support not found in current theme - adding some...")
 
-            if utils.have_gtk_version("3.20.0"):
-                path = os.path.join(config.pkgdatadir, "cinnamon-screensaver-gtk3.20.css")
-            elif utils.have_gtk_version("3.18.0"):
-                path = os.path.join(config.pkgdatadir, "cinnamon-screensaver-gtk3.18.css")
-            else:
-                path = os.path.join(config.pkgdatadir, "cinnamon-screensaver-gtk3.14.css")
+            path = os.path.join(config.pkgdatadir, "cinnamon-screensaver.css")
 
             f = open(path, 'r')
             fallback_css = f.read()
