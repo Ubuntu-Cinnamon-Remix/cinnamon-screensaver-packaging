@@ -8,8 +8,6 @@ Uploaders:
  Fabio Fantoni <fantonifabio@tiscali.it>,
  Norbert Preining <norbert@preining.info>
 Build-Depends:
- autoconf-archive,
- automake,
  debhelper-compat (= 13),
  dh-python,
  gnome-pkg-tools (>= 0.10),
