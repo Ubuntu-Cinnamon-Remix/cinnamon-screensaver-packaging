@@ -1,4 +1,4 @@
-project('cinnamon-screensaver', 'c', version: '4.6.0', meson_version: '>=0.40.0')
+project('cinnamon-screensaver', 'c', version: '4.8.0', meson_version: '>=0.46.0')
 
 cc = meson.get_compiler('c')
 
@@ -43,7 +43,7 @@ x11 = dependency('x11')
 xext = dependency('xext')
 xrandr = dependency('xrandr', required: false)
 m = cc.find_library('m')
-dbus_services_dir = dependency('dbus-1').get_pkgconfig_variable('session_bus_services_dir', define_variable: ['prefix', prefix])
+dbus_services_dir = dependency('dbus-1').get_pkgconfig_variable('session_bus_services_dir', define_variable: ['datadir', datadir])
 
 # check for symbols and headers
 foreach header : [
@@ -61,7 +61,8 @@ foreach sym : [
   endif
 endforeach
 
-if get_option('xinerama')
+use_xinerama = get_option('xinerama')
+if use_xinerama
   if host_machine.system() == 'solaris'
     xinerama = cc.find_library('Xext')
     xinerama_h = cc.has_header('X11/extensions/xinerama.h')
@@ -123,6 +124,7 @@ conf_h = configure_file(
 
 inc = include_directories('.')
 
+subdir('install-scripts')
 subdir('libcscreensaver')
 subdir('data')
 subdir('src')
