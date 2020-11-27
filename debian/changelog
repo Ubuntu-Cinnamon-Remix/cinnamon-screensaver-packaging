@@ -1,3 +1,10 @@
+cinnamon-screensaver (4.8.0-1~) UNRELEASED; urgency=medium
+
+  * New upstream version 4.8.0
+  * remove autoconf related build-deps
+
+ -- Norbert Preining <norbert@preining.info>  Fri, 27 Nov 2020 14:01:21 +0900
+
 cinnamon-screensaver (4.6.0-2) unstable; urgency=medium
 
   * Upload to unstable
