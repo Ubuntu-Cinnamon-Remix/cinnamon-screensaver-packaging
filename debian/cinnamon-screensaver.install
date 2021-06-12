@@ -1,7 +1,8 @@
-usr/bin/cinnamon-screensaver
-usr/bin/cinnamon-screensaver-command
+etc/pam.d/cinnamon-screensaver
+usr/bin/
 usr/lib/*/cinnamon-screensaver/cinnamon-screensaver-pam-helper
-usr/share/applications/cinnamon-screensaver.desktop
+usr/lib/*/cinnamon-screensaver/cs-backup-locker
+usr/share/applications/
 usr/share/cinnamon-screensaver/*.css
 usr/share/cinnamon-screensaver/*.py
 usr/share/cinnamon-screensaver/*/*.py
