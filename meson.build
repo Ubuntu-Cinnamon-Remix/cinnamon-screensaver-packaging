@@ -1,4 +1,4 @@
-project('cinnamon-screensaver', 'c', version: '4.8.1', meson_version: '>=0.46.0')
+project('cinnamon-screensaver', 'c', version: '5.0.4', meson_version: '>=0.46.0')
 
 cc = meson.get_compiler('c')
 
@@ -124,7 +124,19 @@ conf_h = configure_file(
 
 inc = include_directories('.')
 
+if not get_option('deprecated-warnings')
+  add_global_arguments([
+      '-Wno-deprecated-declarations',
+      '-Wno-deprecated',
+      '-Wno-declaration-after-statement',
+      '-DGLIB_DISABLE_DEPRECATION_WARNINGS',
+    ],
+    language: 'c',
+  )
+endif
+
 subdir('install-scripts')
 subdir('libcscreensaver')
 subdir('data')
 subdir('src')
+subdir('backup-locker')

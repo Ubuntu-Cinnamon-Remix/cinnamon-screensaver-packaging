@@ -1,9 +1,13 @@
 #!/usr/bin/python3
 
-from gi.repository import Gdk, GObject
+from gi.repository import Gdk, GObject, GLib, Gio
 import time
 import traceback
+import os
+import signal
+import subprocess
 
+import config
 import constants as c
 import status
 
@@ -28,6 +32,8 @@ class ScreensaverManager(GObject.Object):
         self.activated_timestamp = 0
 
         self.stage = None
+        self.fb_pid = 0
+        self.fb_failed_to_start = False
 
         # Ensure our state
         status.Active = False
@@ -52,6 +58,14 @@ class ScreensaverManager(GObject.Object):
         """
         return status.Locked
 
+    def set_locked(self, locked):
+        if locked:
+            status.Locked = True
+            self.spawn_fallback_window()
+        else:
+            status.Locked = False
+            self.kill_fallback_window()
+
     def lock(self, msg=""):
         """
         Initiate locking (activating first if necessary.)  Return True if we were
@@ -62,11 +76,11 @@ class ScreensaverManager(GObject.Object):
             if self.set_active(True, msg):
                 self.stop_lock_delay()
                 if utils.user_can_lock():
-                    status.Locked = True
+                    self.set_locked(True)
                 return False
         else:
             if utils.user_can_lock():
-                status.Locked = True
+                self.set_locked(True)
             self.stage.set_message(msg)
 
         # Return True to complete any invocation immediately because:
@@ -81,7 +95,7 @@ class ScreensaverManager(GObject.Object):
         Initiate unlocking and deactivating
         """
         self.set_active(False)
-        status.Locked = False
+        self.set_locked(False)
         status.Awake = False
 
     def set_active(self, active, msg=None):
@@ -101,6 +115,7 @@ class ScreensaverManager(GObject.Object):
                 self.cinnamon_client.exit_expo_and_overview()
                 if self.grab_helper.grab_root(False):
                     if not self.stage:
+                        Gio.Application.get_default().hold()
                         self.spawn_stage(msg, self.on_spawn_stage_complete)
                     else:
                         self.stage.activate(self.on_spawn_stage_complete)
@@ -115,10 +130,10 @@ class ScreensaverManager(GObject.Object):
         else:
             if self.stage:
                 self.despawn_stage(self.on_despawn_stage_complete)
+                Gio.Application.get_default().release()
                 status.focusWidgets = []
             self.grab_helper.release()
             return True
-        return False
 
     def get_active(self):
         """
@@ -193,6 +208,115 @@ class ScreensaverManager(GObject.Object):
             self.grab_helper.release()
             status.Active = False
             self.cancel_timers()
+
+    def spawn_fallback_window(self):
+        if self.fb_pid > 0:
+            return
+
+        if status.Debug:
+            print("manager: spawning fallback window")
+
+        if self.stage.get_realized():
+            self._real_spawn_fallback_window(self)
+        else:
+            self.stage.connect("realize", self._real_spawn_fallback_window)
+
+    def get_tty_vals(self):
+        session_tty = None
+        term_tty = None
+        username = GLib.get_user_name()[:8]
+        used_tty = []
+
+        try:
+            tty_output = subprocess.check_output(["w", "-h"]).decode("utf-8")
+            for line in tty_output.split("\n"):
+                if line.startswith(username):
+                    if "cinnamon-session" in line and "tty" in line:
+                        session_tty = line.split()[1].replace("tty", "")
+                        used_tty.append(session_tty)
+                    elif "tty" in line:
+                        term_tty = line.split()[1].replace("tty", "")
+                elif "tty" in line:
+                    used_tty.append(line.split()[1].replace("tty", ""))
+
+            used_tty.sort()
+
+            if term_tty == None:
+                for i in range(1, 6):
+                    if str(i) not in used_tty:
+                        term_tty = str(i)
+                        break
+        except Exception as e:
+            print("Failed to get tty numbers using w -h: %s" % str(e))
+
+        if session_tty == None:
+            try:
+                session_tty = os.environ["XDG_VTNR"]
+            except KeyError:
+                session_tty = "7"
+
+        if term_tty == None:
+            term_tty = "2" if session_tty != "2" else "1"
+
+        return [term_tty, session_tty]
+
+    def _real_spawn_fallback_window(self, stage, data=None):
+        if self.fb_pid > 0:
+            return
+
+        term_tty, session_tty = self.get_tty_vals()
+
+        argv = [
+            os.path.join(config.libexecdir, "cs-backup-locker"),
+            str(self.stage.get_window().get_xid()),
+            term_tty,
+            session_tty
+        ]
+
+        try:
+            self.fb_pid = GLib.spawn_async(argv)[0]
+        except GLib.Error as e:
+            self.fb_failed_to_start = True
+            print("Could not start screensaver fallback process: %s" % e.message)
+
+        try:
+            self.stage.disconnect_by_func(self._real_spawn_fallback_window)
+        except:
+            pass
+
+    def kill_fallback_window(self):
+        if self.fb_pid == 0 and not self.fb_failed_to_start:
+            return
+
+        if status.Debug:
+            print("manager: killing fallback window")
+
+        try:
+            if status.Debug:
+                print("manager: checking if fallback window exists first.")
+            if self.fb_pid > 0:
+                os.kill(self.fb_pid, 0)
+            elif self.fb_failed_to_start:
+                raise ProcessLookupError("Fallback window failed to start")
+        except ProcessLookupError:
+            if status.Debug:
+                print("manager: fallback window terminated before the main screensaver, something went wrong!")
+            notification = Gio.Notification.new(_("Cinnamon Screensaver has experienced an error"))
+
+            notification.set_body(_("The 'cs-backup-locker' process terminated before the screensaver did. "
+                                    "Please report this issue and try to describe any actions you may "
+                                    "have performed prior to this occurring."))
+            notification.set_icon(Gio.ThemedIcon(name="dialog-error"))
+            notification.set_priority(Gio.NotificationPriority.URGENT)
+            Gio.Application.get_default().send_notification("cinnamon-screensaver", notification)
+
+        try:
+            os.kill(self.fb_pid, signal.SIGTERM)
+        except:
+            pass
+
+        self.fb_failed_to_start = False
+        self.fb_pid = 0
 
     def despawn_stage(self, callback=None):
         """
@@ -290,7 +414,7 @@ class ScreensaverManager(GObject.Object):
         if status.Debug:
             print("manager: locking after delay ('lock-delay')")
 
-        status.Locked = True
+        self.set_locked(True)
 
         return False
 
