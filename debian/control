@@ -6,7 +6,8 @@ Uploaders:
  Maximiliano Curia <maxy@debian.org>,
  Margarita Manterola <marga@debian.org>,
  Fabio Fantoni <fantonifabio@tiscali.it>,
- Norbert Preining <norbert@preining.info>
+ Norbert Preining <norbert@preining.info>,
+ Joshua Peisach <itzswirlz2020@outlook.com>
 Build-Depends:
  debhelper-compat (= 13),
  dh-python,
